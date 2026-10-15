@@ -1,0 +1,496 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#f8eee4">
+<title>Zety & Boulangerie | Digital Receipt</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+:root {
+  --cream:#fffaf2;
+  --pink:#e8b9b5;
+  --brown:#684638;
+  --yellow:#f5df9b;
+  --green:#a9b8a0;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  padding:18px;
+  background:#f8eee4;
+  color:var(--brown);
+  font-family:"Trebuchet MS",sans-serif;
+}
+.app { max-width:520px; margin:auto; }
+h1 {
+  font-family:Georgia,serif;
+  text-align:center;
+  font-size:28px;
+  margin-bottom:5px;
+}
+.subtitle { text-align:center; font-size:12px; }
+.card {
+  background:var(--cream);
+  padding:18px;
+  border-radius:20px;
+  margin:15px 0;
+  border:1px solid #ead8c7;
+}
+h2 { font-size:16px; margin-top:0; }
+label { display:block; font-size:12px; margin:12px 0 5px; }
+input,select,textarea {
+  width:100%;
+  padding:11px;
+  border:1px solid #e3cec0;
+  background:white;
+  border-radius:10px;
+  color:var(--brown);
+  font:inherit;
+}
+button {
+  border:0;
+  border-radius:12px;
+  padding:12px;
+  background:var(--pink);
+  color:#54372e;
+  font-weight:bold;
+  cursor:pointer;
+}
+button:active { opacity:.8; }
+.primary { width:100%; margin-top:10px; }
+.secondary { background:var(--yellow); }
+.row {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.product-row {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 62px 85px 32px;
+  gap:5px;
+  align-items:center;
+  margin-bottom:9px;
+}
+.product-row select,.product-row input {
+  padding:9px 5px;
+  font-size:12px;
+  min-width:0;
+}
+.remove { padding:8px 4px; background:#f1d5d0; }
+#receipt {
+  background:#fffdf8;
+  border:1px dashed #c9a98d;
+  border-radius:5px;
+  padding:22px 16px;
+  color:#604535;
+}
+.brand {
+  text-align:center;
+  border-bottom:1px dashed #c9a98d;
+  padding-bottom:15px;
+}
+.brand h2 {
+  font-family:Georgia,serif;
+  font-size:24px;
+  margin:5px 0;
+}
+.bread { font-size:27px; }
+.center { text-align:center; }
+.small { font-size:11px; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+td { padding:8px 2px; border-bottom:1px dotted #e5d6c8; }
+.right { text-align:right; }
+.total {
+  font-size:19px;
+  font-weight:bold;
+  border-top:1px solid #c9a98d;
+  padding-top:12px;
+  margin-top:12px;
+  display:flex;
+  justify-content:space-between;
+}
+.footer { text-align:center; margin-top:20px; line-height:1.7; }
+.actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.hint { font-size:11px; line-height:1.6; opacity:.8; }
+@media print {
+  body { padding:0; background:white; }
+  body * { visibility:hidden; }
+  #receipt,#receipt * { visibility:visible; }
+  #receipt {
+    position:absolute; left:0; top:0; width:100%;
+    border:0; border-radius:0;
+  }
+  .no-print { display:none!important; }
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+  <div class="no-print">
+    <h1>Zety & Boulangerie</h1>
+    <div class="subtitle">Petit pain, grand plaisir ♡</div>
+
+    <div class="card">
+      <h2>♡ New receipt</h2>
+      <div class="row">
+        <div>
+          <label>Receipt number</label>
+          <input id="receiptNo" readonly>
+        </div>
+        <div>
+          <label>Date</label>
+          <input id="date" type="date">
+        </div>
+      </div>
+
+      <label>Customer name</label>
+      <input id="customer" placeholder="Customer's name">
+
+      <label>Customer phone (optional)</label>
+      <input id="phone" placeholder="Phone number">
+
+      <label>Payment method</label>
+      <select id="payment">
+        <option>Online Transfer</option>
+        <option>Cash</option>
+        <option>QR Payment</option>
+        <option>Other</option>
+      </select>
+
+      <label>Payment status</label>
+      <select id="status">
+        <option>Paid</option>
+        <option>Unpaid</option>
+        <option>Deposit Paid</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <h2>♡ Your bakery goodies</h2>
+      <div id="items"></div>
+      <button class="secondary primary" onclick="addItem()">
+        + Add product
+      </button>
+      <p class="hint">Choose a product or select Custom product to enter your own item and price.</p>
+    </div>
+
+    <div class="card">
+      <h2>♡ Payment details</h2>
+      <div class="row">
+        <div>
+          <label>Discount (RM)</label>
+          <input id="discount" type="number" min="0" value="0" step=".01">
+        </div>
+        <div>
+          <label>Delivery fee (RM)</label>
+          <input id="delivery" type="number" min="0" value="0" step=".01">
+        </div>
+      </div>
+      <label>Notes (optional)</label>
+      <textarea id="notes" rows="2" placeholder="Thank you for your order!"></textarea>
+      <button class="primary" onclick="updateReceipt()">Preview receipt ♡</button>
+    </div>
+  </div>
+
+  <div id="receipt">
+    <div class="brand">
+      <div class="bread">🥐 🍞 🥖</div>
+      <h2>Zety & Boulangerie</h2>
+      <div class="small">PETIT PAIN, GRAND PLAISIR</div>
+      <p class="small">Homemade with love ♡</p>
+      <div class="small">DIGITAL RECEIPT</div>
+    </div>
+
+    <p class="small">Receipt no: <b id="rNo"></b></p>
+    <p class="small">Date: <span id="rDate"></span></p>
+    <p class="small">Customer: <span id="rCustomer">Walk-in customer</span></p>
+    <p class="small">Phone: <span id="rPhone">-</span></p>
+
+    <table>
+      <thead>
+        <tr>
+          <td><b>Item</b></td>
+          <td class="right"><b>Qty</b></td>
+          <td class="right"><b>Amount</b></td>
+        </tr>
+      </thead>
+      <tbody id="rItems"></tbody>
+    </table>
+
+    <div style="margin-top:12px;font-size:12px">
+      <div style="display:flex;justify-content:space-between;margin:7px 0">
+        <span>Subtotal</span><span id="rSubtotal">RM0.00</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin:7px 0">
+        <span>Discount</span><span id="rDiscount">-RM0.00</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin:7px 0">
+        <span>Delivery</span><span id="rDelivery">RM0.00</span>
+      </div>
+    </div>
+
+    <div class="total">
+      <span>TOTAL</span><span id="rTotal">RM0.00</span>
+    </div>
+
+    <p class="small">Payment: <span id="rPayment"></span></p>
+    <p class="small">Status: <b id="rStatus">Paid</b></p>
+    <p class="small" id="rNotes"></p>
+
+    <div class="footer">
+      <div>Merci beaucoup! ♡</div>
+      <div class="small">Thank you for supporting my little bakery.</div>
+      <div style="margin-top:8px">🥐 · 🍕 · 🥖 · 🍞</div>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>♡ Save & share</h2>
+    <div class="actions">
+      <button onclick="savePDF()">Save as PDF</button>
+      <button class="secondary" onclick="sharePDF()">Share PDF</button>
+    </div>
+    <button class="primary" onclick="window.print()">Print receipt</button>
+    <button class="primary secondary" onclick="newReceipt()">New receipt</button>
+    <p class="hint">PDF saving and sharing require an internet connection the first time the PDF tools load. On iPhone, use the Share Sheet to send the PDF via WhatsApp.</p>
+  </div>
+</div>
+
+<script>
+const products = [
+  ["Croissant", 4.50],
+  ["Ficelle", 0],
+  ["Focaccia Mini", 7.00],
+  ["Focaccia Classica", 13.00],
+  ["Personal Pizza 6 inch", 9.00],
+  ["Brioche", 0],
+  ["Buns", 0],
+  ["Crème Brûlée", 4.50],
+  ["Creamy Crab", 4.50],
+  ["Mixed Berry Bliss", 4.50],
+  ["Pandan Crème Brûlée", 4.50],
+  ["Butter Cookies", 0],
+  ["Sablés au Beurre", 0],
+  ["Tteokbokki", 6.00],
+  ["Ciabatta Sandwich", 0],
+  ["Shio Pan / Salt Bread", 0],
+  ["Pumpkin Bread", 0],
+  ["Rustic Italian Bread", 0],
+  ["Fleur Salée", 0],
+  ["Custom product", 0]
+];
+
+const money = n => "RM" + Number(n).toFixed(2);
+const $ = id => document.getElementById(id);
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;",
+    '"':"&quot;", "'":"&#39;"
+  })[c]);
+}
+
+function makeReceiptNo() {
+  const d = new Date();
+  return "ZB-" +
+    d.getFullYear().toString().slice(-2) +
+    String(d.getMonth()+1).padStart(2,"0") +
+    String(d.getDate()).padStart(2,"0") + "-" +
+    Math.random().toString(36).slice(2,6).toUpperCase();
+}
+
+function addItem(name = "Croissant", qty = 1, price) {
+  const row = document.createElement("div");
+  row.className = "product-row";
+
+  const options = products.map(p =>
+    `<option value="${escapeHTML(p[0])}" ${p[0]===name?"selected":""}>${escapeHTML(p[0])}</option>`
+  ).join("");
+
+  row.innerHTML = `
+    <div>
+      <select class="item-name">${options}</select>
+      <input class="custom-name" placeholder="Product name"
+        style="display:none;margin-top:4px">
+    </div>
+    <input class="item-qty" type="number" min="1" step="1"
+      value="${qty}" aria-label="Quantity">
+    <input class="item-price" type="number" min="0" step=".01"
+      value="${price ?? products.find(p=>p[0]===name)?.[1] ?? 0}"
+      aria-label="Unit price">
+    <button class="remove" aria-label="Remove item">×</button>
+  `;
+
+  const select = row.querySelector(".item-name");
+  const custom = row.querySelector(".custom-name");
+  const priceInput = row.querySelector(".item-price");
+
+  select.addEventListener("change", () => {
+    const isCustom = select.value === "Custom product";
+    custom.style.display = isCustom ? "block" : "none";
+    if (!isCustom) {
+      priceInput.value = products.find(p=>p[0]===select.value)?.[1] ?? 0;
+    }
+    updateReceipt();
+  });
+
+  custom.addEventListener("input", updateReceipt);
+  row.querySelector(".item-qty").addEventListener("input", updateReceipt);
+  priceInput.addEventListener("input", updateReceipt);
+  row.querySelector(".remove").addEventListener("click", () => {
+    row.remove();
+    updateReceipt();
+  });
+
+  $("items").appendChild(row);
+  updateReceipt();
+}
+
+function getItems() {
+  return [...document.querySelectorAll(".product-row")].map(row => {
+    const selected = row.querySelector(".item-name").value;
+    const customName = row.querySelector(".custom-name").value.trim();
+    return {
+      name: selected === "Custom product" ?
+        (customName || "Custom product") : selected,
+      qty: Math.max(0, Number(row.querySelector(".item-qty").value) || 0),
+      price: Math.max(0, Number(row.querySelector(".item-price").value) || 0)
+    };
+  }).filter(item => item.qty > 0);
+}
+
+function updateReceipt() {
+  const items = getItems();
+  const subtotal = items.reduce((s,i)=>s+i.qty*i.price,0);
+  const discount = Math.max(0,Number($("discount").value)||0);
+  const delivery = Math.max(0,Number($("delivery").value)||0);
+  const total = Math.max(0,subtotal-discount+delivery);
+
+  $("rNo").textContent = $("receiptNo").value;
+  $("rDate").textContent = $("date").value || "-";
+  $("rCustomer").textContent = $("customer").value.trim() || "Walk-in customer";
+  $("rPhone").textContent = $("phone").value.trim() || "-";
+
+  $("rItems").innerHTML = items.map(i=>`
+    <tr>
+      <td>${escapeHTML(i.name)}<br><span class="small">${money(i.price)} each</span></td>
+      <td class="right">${i.qty}</td>
+      <td class="right">${money(i.qty*i.price)}</td>
+    </tr>
+  `).join("") || '<tr><td colspan="3">No items added</td></tr>';
+
+  $("rSubtotal").textContent = money(subtotal);
+  $("rDiscount").textContent = "-" + money(discount);
+  $("rDelivery").textContent = money(delivery);
+  $("rTotal").textContent = money(total);
+  $("rPayment").textContent = $("payment").value;
+  $("rStatus").textContent = $("status").value;
+  $("rNotes").textContent = $("notes").value.trim();
+
+  return total;
+}
+
+async function createPDF() {
+  updateReceipt();
+
+  if (!window.html2canvas || !window.jspdf) {
+    alert("PDF tools could not load. Check your internet connection and try again.");
+    return null;
+  }
+
+  const element = $("receipt");
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    backgroundColor: "#fffdf8",
+    useCORS: true
+  });
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const margin = 12;
+  const width = pageWidth - margin*2;
+  const height = canvas.height * width / canvas.width;
+  const image = canvas.toDataURL("image/png");
+
+  let remaining = height;
+  let position = margin;
+  pdf.addImage(image,"PNG",margin,position,width,height);
+  remaining -= (pdf.internal.pageSize.getHeight()-margin*2);
+
+  while (remaining > 0) {
+    pdf.addPage();
+    position = margin - (height - remaining);
+    pdf.addImage(image,"PNG",margin,position,width,height);
+    remaining -= (pdf.internal.pageSize.getHeight()-margin*2);
+  }
+
+  return pdf;
+}
+
+async function savePDF() {
+  try {
+    const pdf = await createPDF();
+    if (pdf) pdf.save(($("receiptNo").value || "Zety-Receipt") + ".pdf");
+  } catch(e) {
+    alert("Could not create PDF. Please try again.");
+  }
+}
+
+async function sharePDF() {
+  try {
+    const pdf = await createPDF();
+    if (!pdf) return;
+
+    const blob = pdf.output("blob");
+    const file = new File([blob],
+      ($("receiptNo").value || "Zety-Receipt") + ".pdf",
+      {type:"application/pdf"});
+
+    if (navigator.canShare && navigator.canShare({files:[file]})) {
+      await navigator.share({
+        files:[file],
+        title:"Zety & Boulangerie Receipt",
+        text:"Thank you for your order! Merci beaucoup ♡"
+      });
+    } else {
+      pdf.save(file.name);
+      alert("PDF saved. Open the file and use Share to send it to your customer.");
+    }
+  } catch(e) {
+    if (e.name !== "AbortError") {
+      alert("Sharing failed. Try Save as PDF instead.");
+    }
+  }
+}
+
+function newReceipt() {
+  $("receiptNo").value = makeReceiptNo();
+  $("date").value = new Date().toLocaleDateString("en-CA");
+  $("customer").value = "";
+  $("phone").value = "";
+  $("payment").value = "Online Transfer";
+  $("status").value = "Paid";
+  $("discount").value = "0";
+  $("delivery").value = "0";
+  $("notes").value = "";
+  $("items").innerHTML = "";
+  addItem();
+}
+
+["date","customer","phone","payment","status","discount","delivery","notes"]
+.forEach(id => {
+  $(id).addEventListener("input", updateReceipt);
+  $(id).addEventListener("change", updateReceipt);
+});
+
+newReceipt();
+</script>
+</body>
+</html>
